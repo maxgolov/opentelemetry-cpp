@@ -13,16 +13,15 @@ message ("CMAKE_CXX_COMPILER       = ${CMAKE_CXX_COMPILER}")
 message ("CMAKE_CXX_COMPILER_ID    = ${CMAKE_CXX_COMPILER_ID}")
 message ("CMAKE_COMPILER_IS_GNUCXX = ${CMAKE_COMPILER_IS_GNUCXX}")
 
+#set(CMAKE_OSX_SYSROOT /Library/Developer/CommandLineTools/SDKs/MacOSX10.15.sdk)
 set(CMAKE_OSX_SYSROOT ${CMAKE_OSX_SYSROOT} CACHE PATH "..." FORCE)
 
-
 if(WITH_STL)
-add_definitions(-DHAVE_STDLIB_CPP -DHAVE_GSL)
-# Guidelines Support Library path
-set(GSL_DIR ../../third_party/ms-gsl)
-include_directories(${GSL_DIR}/include)
-# TODO: use latest
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++2a")
+  set(CMAKE_CXX_STANDARD 20)
+  add_definitions(-DHAVE_STDLIB_CPP -DHAVE_GSL)
+  # Guidelines Support Library path: optional if compiling with C++20
+  set(GSL_DIR ../../third_party/ms-gsl)
+  include_directories(${GSL_DIR}/include)
 endif()
 
 set(OPENTELEMETRY_API_DIR ../../api)
