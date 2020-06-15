@@ -2,9 +2,9 @@
 
 #include <cstdint>
 
+#include "opentelemetry/nostd/stltypes.h"
+
 #include "opentelemetry/core/timestamp.h"
-#include "opentelemetry/nostd/span.h"
-#include "opentelemetry/nostd/string_view.h"
 #include "opentelemetry/trace/canonical_code.h"
 #include "opentelemetry/trace/key_value_iterable_view.h"
 #include "opentelemetry/version.h"
@@ -157,5 +157,15 @@ public:
 
   virtual Tracer &tracer() const noexcept = 0;
 };
+
+// TODO consider std::is_pointer to verify the template argument type
+template <class SpanType, class TracerType>
+nostd::unique_ptr<trace::Span> to_span_ptr(TracerType *objPtr,
+                                           nostd::string_view name,
+                                           const trace::StartSpanOptions &options)
+{
+  return nostd::unique_ptr<trace::Span>{new (std::nothrow) SpanType{*objPtr, name, options}};
+}
+
 }  // namespace trace
 OPENTELEMETRY_END_NAMESPACE

@@ -4,7 +4,7 @@
 #include <memory>
 #include <string>
 
-#include "opentelemetry/nostd/shared_ptr.h"
+#include "opentelemetry/nostd/stltypes.h"
 #include "opentelemetry/sdk/trace/processor.h"
 #include "opentelemetry/sdk/trace/tracer.h"
 #include "opentelemetry/trace/tracer_provider.h"
@@ -43,7 +43,7 @@ public:
 
 private:
   opentelemetry::sdk::AtomicSharedPtr<SpanProcessor> processor_;
-  std::shared_ptr<opentelemetry::trace::Tracer> tracer_;
+  opentelemetry::nostd::shared_ptr<opentelemetry::trace::Tracer> tracer_;
 };
 }  // namespace trace
 }  // namespace sdk

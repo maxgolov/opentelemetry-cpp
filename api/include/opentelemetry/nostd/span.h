@@ -8,6 +8,7 @@
 #include <type_traits>
 
 #include "opentelemetry/nostd/utility.h"
+// TODO: consider #include <utility>
 #include "opentelemetry/version.h"
 
 OPENTELEMETRY_BEGIN_NAMESPACE

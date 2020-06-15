@@ -1,11 +1,12 @@
 #pragma once
 
-#include "opentelemetry/nostd/string_view.h"
-#include "opentelemetry/nostd/unique_ptr.h"
-#include "opentelemetry/trace/span.h"
+#include <chrono>
+
 #include "opentelemetry/version.h"
 
-#include <chrono>
+#include "opentelemetry/nostd/stltypes.h"
+
+#include "opentelemetry/trace/span.h"
 
 OPENTELEMETRY_BEGIN_NAMESPACE
 namespace trace
@@ -48,6 +49,12 @@ public:
   {
     this->CloseWithMicroseconds(
         static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::microseconds>(timeout)));
+  }
+
+  void Close() noexcept
+  {
+    /* TODO: respect timeout from TracerOptions? */
+    CloseWithMicroseconds(0);
   }
 
   virtual void CloseWithMicroseconds(uint64_t timeout) noexcept = 0;

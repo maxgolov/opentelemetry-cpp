@@ -13,7 +13,7 @@ opentelemetry::nostd::shared_ptr<opentelemetry::trace::Tracer> TracerProvider::G
     nostd::string_view library_name,
     nostd::string_view library_version) noexcept
 {
-  return opentelemetry::nostd::shared_ptr<opentelemetry::trace::Tracer>(tracer_);
+  return tracer_;
 }
 
 void TracerProvider::SetProcessor(std::shared_ptr<SpanProcessor> processor) noexcept
