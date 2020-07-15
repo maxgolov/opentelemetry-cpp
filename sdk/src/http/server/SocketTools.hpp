@@ -458,7 +458,7 @@ struct Reactor : protected common::Thread
   /// <summary>
   /// Socket State callback
   /// </summary>
-  class Callback
+  class SocketCallback
   {
   public:
     virtual void onSocketReadable(Socket sock)   = 0;
@@ -478,7 +478,7 @@ struct Reactor : protected common::Thread
     Closed     = 8
   };
 
-  Callback &m_callback;
+  SocketCallback &m_callback;
 
   std::vector<SocketData> m_sockets;
 
@@ -500,7 +500,7 @@ struct Reactor : protected common::Thread
 #endif
 
 public:
-  Reactor(Callback &callback) : m_callback(callback)
+  Reactor(SocketCallback &callback) : m_callback(callback)
   {
 #ifdef __linux__
 #  ifdef ANDROID

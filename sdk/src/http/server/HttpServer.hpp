@@ -14,6 +14,7 @@
 
 #pragma once
 
+#include <functional>
 #include <list>
 #include <map>
 
@@ -27,11 +28,63 @@
 #endif
 
 #ifndef HTTP_SERVER_NS
-#define HTTP_SERVER_NS      testing
+#  define HTTP_SERVER_NS testing
 #endif
 
 namespace HTTP_SERVER_NS
 {
+
+const char *CONTENT_TYPE      = "Content-Type";
+const char *CONTENT_TYPE_TEXT = "text/plain";
+const char *CONTENT_TYPE_BIN  = "application/octet-stream";
+
+struct HttpRequest
+{
+  std::string client;
+  std::string method;
+  std::string uri;
+  std::string protocol;
+  std::map<std::string, std::string> headers;
+  std::string content;
+};
+
+struct HttpResponse
+{
+  int code;
+  std::string message;
+  std::map<std::string, std::string> headers;
+  std::string body;
+};
+
+using CallbackFunction = std::function<int(HttpRequest const &request, HttpResponse &response)>;
+
+class HttpRequestCallback
+{
+protected:
+  CallbackFunction callback = nullptr;
+
+public:
+  HttpRequestCallback(){};
+
+  HttpRequestCallback &operator=(HttpRequestCallback other) { callback = other.callback; };
+
+  HttpRequestCallback(CallbackFunction func) : callback(func){};
+
+  HttpRequestCallback &operator=(CallbackFunction func)
+  {
+    callback = func;
+    return (*this);
+  }
+
+  virtual int onHttpRequest(HttpRequest const &request, HttpResponse &response)
+  {
+    if (callback != nullptr)
+    {
+      return callback(request, response);
+    }
+    return 0;
+  };
+};
 
 // Simple HTTP server
 // Goals:
@@ -40,33 +93,8 @@ namespace HTTP_SERVER_NS
 // Out of scope:
 //   - Performance
 //   - Full support of RFC 7230-7237
-class HttpServer : private SocketTools::Reactor::Callback
+class HttpServer : private SocketTools::Reactor::SocketCallback
 {
-public:
-
-  struct Request
-  {
-    std::string client;
-    std::string method;
-    std::string uri;
-    std::string protocol;
-    std::map<std::string, std::string> headers;
-    std::string content;
-  };
-
-  struct Response
-  {
-    int code;
-    std::string message;
-    std::map<std::string, std::string> headers;
-    std::string content;
-  };
-
-  class Callback
-  {
-  public:
-    virtual int onHttpRequest(Request const &request, Response &response) = 0;
-  };
 
 protected:
   struct Connection
@@ -87,27 +115,57 @@ protected:
     } state;
     size_t contentLength;
     bool keepalive;
-    Request request;
-    Response response;
+    HttpRequest request;
+    HttpResponse response;
   };
 
-protected:
   std::string m_serverHost;
   bool allowKeepalive{true};
   SocketTools::Reactor m_reactor;
   std::list<SocketTools::Socket> m_listeningSockets;
-  std::list<std::pair<std::string, Callback *>> m_handlers;
+
+  class HttpRequestHandler : public std::pair<std::string, HttpRequestCallback *>
+  {
+
+  public:
+    HttpRequestHandler(std::string key, HttpRequestCallback *value)
+    {
+      first  = key;
+      second = value;
+    };
+
+    HttpRequestHandler() : std::pair<std::string, HttpRequestCallback *>()
+    {
+      first  = "";
+      second = nullptr;
+    };
+
+    HttpRequestHandler &operator=(std::pair<std::string, HttpRequestCallback *> other)
+    {
+      first = other.first;
+      second = other.second;
+      return (*this);
+    };
+
+    HttpRequestHandler &operator=(HttpRequestCallback &cb)
+    {
+      second = &cb;
+      return (*this);
+    };
+
+    HttpRequestHandler &operator=(HttpRequestCallback *cb)
+    {
+      second = cb;
+      return (*this);
+    };
+  };
+
+  std::list<HttpRequestHandler> m_handlers;
+
   std::map<SocketTools::Socket, Connection> m_connections;
   size_t m_maxRequestHeadersSize, m_maxRequestContentSize;
 
-  // std::map<std::string, uint64_t> m_killedTokens;
-
 public:
-  // void setKilledToken(std::string token, uint64_t duration) { m_killedTokens[token] = duration;
-  // };
-
-  // void clearKilledTokens() { m_killedTokens.clear(); }
-
   void setKeepalive(bool keepAlive) { allowKeepalive = keepAlive; }
 
   HttpServer()
@@ -115,8 +173,15 @@ public:
         allowKeepalive(true),
         m_reactor(*this),
         m_maxRequestHeadersSize(8192),
-        m_maxRequestContentSize(2 * 1024 * 1024)
-  {}
+        m_maxRequestContentSize(2 * 1024 * 1024){};
+
+  HttpServer(std::string serverHost, int port = 30000) : HttpServer()
+  {
+    std::ostringstream os;
+    os << serverHost << ":" << port;
+    setServerName(os.str());
+    addListeningPort(port);
+  };
 
   ~HttpServer()
   {
@@ -152,21 +217,43 @@ public:
     return addr.port();
   }
 
-  void addHandler(std::string const &root, Callback &handler)
+  HttpRequestHandler &addHandler(const std::string &root, HttpRequestCallback &handler)
   {
-    m_handlers.push_back(std::make_pair(root, &handler));
+    // No thread-safety here!
+    m_handlers.push_back({root, &handler});
     LOG_INFO("HttpServer: Added handler for %s", root.c_str());
+    return m_handlers.back();
   }
 
-  void start() { m_reactor.start(); }
+  HttpRequestHandler &operator[](const std::string &root)
+  {
+    // No thread-safety here!
+    m_handlers.push_back({root, nullptr});
+    LOG_INFO("HttpServer: Added handler for %s", root.c_str());
+    return m_handlers.back();
+  }
 
-  void stop() { m_reactor.stop(); }
+  HttpServer &operator+=( std::pair<const std::string &, HttpRequestCallback&> other)
+  {
+    LOG_INFO("HttpServer: Added handler for %s", other.first.c_str());
+    m_handlers.push_back(HttpRequestHandler(other.first, &other.second));
+    return (*this);
+  };
+
+  void start()
+  {
+      m_reactor.start();
+  }
+
+  void stop()
+  {
+      m_reactor.stop();
+  }
 
 protected:
-
   virtual void onSocketAcceptable(SocketTools::Socket socket) override
   {
-    LOG_TRACE("HttpServer: accepting socket fd=0x%x", socket.m_sock);
+    LOG_TRACE("HttpServer: accepting socket fd=0x%llx", socket.m_sock);
     assert(std::find(m_listeningSockets.begin(), m_listeningSockets.end(), socket) !=
            m_listeningSockets.end());
 
@@ -186,10 +273,12 @@ protected:
 
   virtual void onSocketReadable(SocketTools::Socket socket) override
   {
-    LOG_TRACE("HttpServer: reading socket fd=0x%x", socket.m_sock);
+    LOG_TRACE("HttpServer: reading socket fd=0x%llx", socket.m_sock);
+    // No thread-safety here!
     assert(std::find(m_listeningSockets.begin(), m_listeningSockets.end(), socket) ==
            m_listeningSockets.end());
 
+    // No thread-safety here!
     auto connIt = m_connections.find(socket);
     if (connIt == m_connections.end())
     {
@@ -212,10 +301,13 @@ protected:
 
   virtual void onSocketWritable(SocketTools::Socket socket) override
   {
-    LOG_TRACE("HttpServer: writing socket fd=0x%x", socket.m_sock);
+    LOG_TRACE("HttpServer: writing socket fd=0x%llx", socket.m_sock);
+
+    // No thread-safety here!
     assert(std::find(m_listeningSockets.begin(), m_listeningSockets.end(), socket) ==
            m_listeningSockets.end());
 
+    // No thread-safety here!
     auto connIt = m_connections.find(socket);
     if (connIt == m_connections.end())
     {
@@ -231,7 +323,7 @@ protected:
 
   virtual void onSocketClosed(SocketTools::Socket socket) override
   {
-    LOG_TRACE("HttpServer: closing socket fd=0x%x", socket.m_sock);
+    LOG_TRACE("HttpServer: closing socket fd=0x%llx", socket.m_sock);
     assert(std::find(m_listeningSockets.begin(), m_listeningSockets.end(), socket) ==
            m_listeningSockets.end());
 
@@ -262,7 +354,8 @@ protected:
 
     if (!conn.sendBuffer.empty())
     {
-      m_reactor.addSocket(conn.socket, SocketTools::Reactor::Writable | SocketTools::Reactor::Closed);
+      m_reactor.addSocket(conn.socket,
+                          SocketTools::Reactor::Writable | SocketTools::Reactor::Closed);
       return true;
     }
 
@@ -270,7 +363,6 @@ protected:
   }
 
 protected:
-
   void handleConnectionClosed(Connection &conn)
   {
     LOG_TRACE("HttpServer: [%s] closed", conn.request.client.c_str());
@@ -445,7 +537,7 @@ protected:
           return;
         }
 
-        conn.sendBuffer = std::move(conn.response.content);
+        conn.sendBuffer = std::move(conn.response.body);
         conn.state      = Connection::SendingBody;
         LOG_TRACE("HttpServer: [%s] sending body", conn.request.client.c_str());
       }
@@ -632,7 +724,7 @@ protected:
   {
     conn.response.message.clear();
     conn.response.headers.clear();
-    conn.response.content.clear();
+    conn.response.body.clear();
 
     if (conn.response.code == 0)
     {
@@ -644,7 +736,8 @@ protected:
         {
           LOG_TRACE("HttpServer: [%s] using handler for %s", conn.request.client.c_str(),
                     handler.first.c_str());
-          int result = handler.second->onHttpRequest(conn.request, conn.response);
+          auto callback = handler.second;
+          int result    = handler.second->onHttpRequest(conn.request, conn.response);
           if (result != 0)
           {
             conn.response.code = result;
@@ -668,7 +761,7 @@ protected:
     conn.response.headers["Host"]           = m_serverHost;
     conn.response.headers["Connection"]     = (conn.keepalive ? "keep-alive" : "close");
     conn.response.headers["Date"]           = formatTimestamp(time(nullptr));
-    conn.response.headers["Content-Length"] = std::to_string(conn.response.content.size());
+    conn.response.headers["Content-Length"] = std::to_string(conn.response.body.size());
   }
 
   static std::string formatTimestamp(time_t time)
@@ -683,6 +776,8 @@ protected:
     strftime(buf, sizeof(buf), "%a, %d %b %Y %H:%M:%S GMT", &tm);
     return buf;
   }
+
+public:
 
   static char const *getDefaultResponseMessage(int code)
   {
@@ -796,4 +891,4 @@ protected:
   }
 };
 
-}
+}  // namespace HTTP_SERVER_NS
