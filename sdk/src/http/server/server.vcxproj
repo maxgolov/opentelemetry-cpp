@@ -143,6 +143,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="HttpServer.hpp" />
+    <ClInclude Include="json.hpp" />
     <ClInclude Include="SocketTools.hpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

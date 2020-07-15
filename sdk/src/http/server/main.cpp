@@ -12,11 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <atomic>
+#include <fstream>
 #include <iostream>
 #include <mutex>
 #include <string>
 #include <vector>
-#include <atomic>
+#include <algorithm>
+
+#include "json.hpp"
+
+using json = nlohmann::json;
 
 // Debug macros
 #define HAVE_CONSOLE_LOG
@@ -25,128 +31,156 @@
 // Macro that allows to implement HTTP server in any namespace
 #define HTTP_SERVER_NS testing
 
-namespace HTTP_SERVER_NS {};
+namespace HTTP_SERVER_NS
+{
+};
 
 #include "HttpServer.hpp"
 
 using namespace HTTP_SERVER_NS;
+using namespace std;
 
-/// <summary>
-/// Example HTTP server at http://127.0.0.1:32000/
-/// </summary>
-class ExampleHttpServer : public HttpServer::Callback
+bool file_get_contents(string filename, std::vector<char>& result)
 {
-protected:
-
-  HttpServer _server;
-
-  int _port{32000};
-
-  std::string _hostname{"localhost"};
-
-  enum RequestState
-  {
-    Planned,
-    Sent,
-    Processed,
-    Done
-  };
-
-  std::atomic<uint32_t> reqCount{0};
-  std::mutex _lock;
-
-public:
-
-  ExampleHttpServer(){};
-
-  /// <summary>
-  /// CLear all responses
-  /// </summary>
-  void Clear()
-  {
-
-  }
-
-  /// <summary>
-  /// Set up simple server
-  /// </summary>
-  virtual void SetUp() /* override */
-  {
-    _port = _server.addListeningPort(_port); /* 0 for random port number */
-    std::ostringstream os;
-    os << "localhost:" << _port;
-    _hostname = os.str();
-    _server.setServerName(_hostname);
-    _server.addHandler("/simple/", *this);
-    _server.addHandler("/echo/", *this);
-    _server.addHandler("/count/", *this);
-    _server.start();
-    Clear();
-  }
-
-  /// <summary>
-  /// Teardown server
-  /// </summary>
-  virtual void TearDown() /* override */
-  {
-    _server.stop();
-    Clear();
-  }
-
-protected:
-
-  /// <summary>
-  /// HTTP request handler
-  /// </summary>
-  /// <param name="request"></param>
-  /// <param name="inResponse"></param>
-  /// <returns></returns>
-  virtual int onHttpRequest(HttpServer::Request const &req,
-                            HttpServer::Response &resp) override
-  {
-    // Simple plain text response
-    if (req.uri.substr(0, 8) == "/simple/")
+#ifdef _WIN32
+    std::replace(filename.begin(), filename.end(), '/', '\\');
+#endif
+    LOG_INFO("Getting file contents: %s", filename.c_str());
+    streampos size;
+    ifstream file(filename, ios::in | ios::binary | ios::ate);
+    if (file.is_open())
     {
-      resp.headers["Content-Type"] = "text/plain";
-      resp.content                 = "It works!";
-      return std::atoi(req.uri.substr(8).c_str());
+        size = file.tellg();
+        if (size)
+        {
+            result.resize(size);
+            file.seekg(0, ios::beg);
+            file.read(result.data(), size);
+        }
+        file.close();
+        return true;
     }
-
-    // Echo back the contents of what we received in HTTP POST
-    if (req.uri == "/echo/")
-    {
-      auto it = req.headers.find("Content-Type");
-      resp.headers["Content-Type"] =
-          (it != req.headers.end()) ? it->second : "application/octet-stream";
-      resp.content = req.content;
-      return 200;
-    }
-
-    // Simple counter that tracks requests processed
-    if (req.uri.substr(0, 7) == "/count/")
-    {
-      reqCount++;
-      resp.headers["Content-Type"] = "text/plain";
-      resp.message                 = "200 OK";
-      resp.content                 = "Requests processed: ";
-      resp.content += std::to_string(reqCount);
-      return 200;
-    }
-
-    // Default handler
-    resp.headers["Content-Type"] = "text/plain";
-    resp.content                 = "Not Found";
-    resp.code                    = 404;
-    resp.message                 = "Not Found";
-    return 404;
-
-  }
+    return false;
 };
 
-int main()
+string mime_content_type(string filename)
 {
-  ExampleHttpServer server;
-  std::cout << "Presss <ENTER> to stop.\n";
-  server.SetUp();
-  std::cin.get();
+    static map<string, string> mimeTypes =
+    {
+        {"css",  "text/css"},
+        {"png",  "image/png"},
+        {"js",   "text/javascript"},
+        {"htm",  "text/html"},
+        {"html", "text/html"},
+        {"json", "application/json"},
+        {"txt",  "text/plain"},
+        {"jpg",  "image/jpeg"},
+        {"jpeg", "image/jpeg"},
+    };
+
+    std::string ext = filename.substr(filename.find_last_of(".") + 1);
+    auto result = mimeTypes[ext];
+    if (result == "")
+    {
+        result = CONTENT_TYPE_TEXT;
+    };
+    return result;
+};
+
+int main(int argc, char* argv[])
+{
+    atomic<uint32_t> reqCount{0};
+
+    HttpServer server("localhost", 32000);
+
+    // Initialize callback function from lambda
+    HttpRequestCallback cb{[&](HttpRequest const& req, HttpResponse& resp) {
+        static std::atomic<size_t> baseId{10000};
+        if (req.uri == "/status.json")
+        {
+            resp.headers[CONTENT_TYPE] = "application/json";
+            json j = json::array();
+            for (size_t i = 0; i < 3; i++)
+            {
+                baseId++;
+                j[i] = {
+                    {"type", "span"},
+                    {"id", baseId.load()},
+                    {"status", "started"}
+                };
+            }
+            resp.body = j.dump();
+            LOG_INFO("response: %s", resp.body.c_str());
+            return 200;
+        };
+
+        // Simple plain text response
+        if (req.uri.substr(0, 8) == "/simple/")
+        {
+            resp.headers[CONTENT_TYPE] = CONTENT_TYPE_TEXT;
+            resp.body = "It works!";
+            return atoi(req.uri.substr(8).c_str());
+        }
+
+        // Echo back the contents of what we received in HTTP POST
+        if (req.uri == "/echo/")
+        {
+            auto it = req.headers.find(CONTENT_TYPE);
+            resp.headers[CONTENT_TYPE] = (it != req.headers.end()) ? it->second : CONTENT_TYPE_BIN;
+            resp.body = req.content;
+            return 200;
+        }
+
+        // Simple counter that tracks requests processed
+        if (req.uri.substr(0, 7) == "/count/")
+        {
+            reqCount++;
+            resp.headers[CONTENT_TYPE] = CONTENT_TYPE_TEXT;
+            resp.message = "200 OK";
+            resp.body = "Requests processed: ";
+            resp.body += to_string(reqCount);
+            return 200;
+        }
+        return 0;
+    }};
+
+    server["/status.json"] = cb;
+    server["/simple/"] = cb;
+    server["/echo/"] = cb;
+    server["/count/"] = cb;
+
+    HttpRequestCallback fileSystemCb{[&](HttpRequest const& req, HttpResponse& resp) {
+        auto filename = req.uri.c_str() + 1;
+        // Default handler
+        std::vector<char> content;
+        if (file_get_contents(filename, content))
+        {
+            resp.headers[CONTENT_TYPE] = mime_content_type(filename);
+            resp.body = std::string(content.data(), content.size());
+            resp.code = 200;
+            resp.message = HttpServer::getDefaultResponseMessage(resp.code);
+            return resp.code;
+        };
+
+        // Two additional 'special' return codes possible here:
+        // 0    - proceed to next handler
+        // -1   - immediately terminate and close connection
+        resp.headers[CONTENT_TYPE] = CONTENT_TYPE_TEXT;
+        resp.code = 404;
+        resp.message = HttpServer::getDefaultResponseMessage(resp.code);
+        resp.body = resp.message;
+        return 404;
+    }};
+    server["/"] = fileSystemCb;
+
+    // Start server
+    server.start();
+
+    // Wait for console input
+    cout << "Presss <ENTER> to stop...\n";
+    cin.get();
+
+    // Stop server
+    server.stop();
+    cout << "Server stopped.\n";
 }
