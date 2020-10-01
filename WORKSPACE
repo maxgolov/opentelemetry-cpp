@@ -59,7 +59,7 @@ protobuf_deps()
 new_local_repository(
     name = "com_github_opentelemetry_proto",
     build_file = "//bazel:opentelemetry_proto.BUILD",
-    path = "third_party/opentelemetry-proto",
+    path = "bazel/opentelemetry-proto",
 )
 
 # GoogleTest framework.
@@ -82,7 +82,7 @@ http_archive(
 
 http_archive(
     name = "github_nlohmann_json",
-    build_file = "//third_party/json:nlohmann_json.BUILD",
+    build_file = "//bazel:third_party/json:nlohmann_json.BUILD",
     sha256 = "69cc88207ce91347ea530b227ff0776db82dcb8de6704e1a3d74f4841bc651cf",
     urls = [
         "https://github.com/nlohmann/json/releases/download/v3.6.1/include.zip",
