@@ -74,19 +74,19 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <LinkIncremental>true</LinkIncremental>
-    <IncludePath>$(ProjectDir);$(OpenTelemetrySDKPath)\exporters\etw;$(OpenTelemetrySDKPath)\api\include;$(OpenTelemetrySDKPath)\sdk;$(OpenTelemetrySDKPath)\sdk\include;$(OpenTelemetrySDKPath)\third_party\ms-gsl\include;$(IncludePath)</IncludePath>
+    <IncludePath>$(ProjectDir)\..\..\third_party\json\include;$(ProjectDir);$(OpenTelemetrySDKPath)\exporters\etw;$(OpenTelemetrySDKPath)\api\include;$(OpenTelemetrySDKPath)\sdk;$(OpenTelemetrySDKPath)\sdk\include;$(OpenTelemetrySDKPath)\third_party\ms-gsl\include;$(IncludePath)</IncludePath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LinkIncremental>true</LinkIncremental>
-    <IncludePath>$(ProjectDir);$(OpenTelemetrySDKPath)\exporters\etw;$(OpenTelemetrySDKPath)\api\include;$(OpenTelemetrySDKPath)\sdk;$(OpenTelemetrySDKPath)\sdk\include;$(OpenTelemetrySDKPath)\third_party\ms-gsl\include;$(IncludePath)</IncludePath>
+    <IncludePath>$(ProjectDir)\..\..\third_party\json\include;$(ProjectDir);$(OpenTelemetrySDKPath)\exporters\etw;$(OpenTelemetrySDKPath)\api\include;$(OpenTelemetrySDKPath)\sdk;$(OpenTelemetrySDKPath)\sdk\include;$(OpenTelemetrySDKPath)\third_party\ms-gsl\include;$(IncludePath)</IncludePath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>false</LinkIncremental>
-    <IncludePath>$(ProjectDir);$(OpenTelemetrySDKPath)\tools\vcpkg\installed\x64-windows\include;$(OpenTelemetrySDKPath)\exporters\etw;$(OpenTelemetrySDKPath)\api\include;$(OpenTelemetrySDKPath)\sdk;$(OpenTelemetrySDKPath)\sdk\include;$(OpenTelemetrySDKPath)\third_party\ms-gsl\include;$(IncludePath)</IncludePath>
+    <IncludePath>$(ProjectDir)\..\..\third_party\json\include;$(ProjectDir);$(OpenTelemetrySDKPath)\tools\vcpkg\installed\x64-windows\include;$(OpenTelemetrySDKPath)\exporters\etw;$(OpenTelemetrySDKPath)\api\include;$(OpenTelemetrySDKPath)\sdk;$(OpenTelemetrySDKPath)\sdk\include;$(OpenTelemetrySDKPath)\third_party\ms-gsl\include;$(IncludePath)</IncludePath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <LinkIncremental>false</LinkIncremental>
-    <IncludePath>$(ProjectDir);$(OpenTelemetrySDKPath)\tools\vcpkg\installed\x64-windows\include;$(OpenTelemetrySDKPath)\exporters\etw;$(OpenTelemetrySDKPath)\api\include;$(OpenTelemetrySDKPath)\sdk;$(OpenTelemetrySDKPath)\sdk\include;$(OpenTelemetrySDKPath)\third_party\ms-gsl\include;$(IncludePath)</IncludePath>
+    <IncludePath>$(ProjectDir)\..\..\third_party\json\include;$(ProjectDir);$(OpenTelemetrySDKPath)\tools\vcpkg\installed\x64-windows\include;$(OpenTelemetrySDKPath)\exporters\etw;$(OpenTelemetrySDKPath)\api\include;$(OpenTelemetrySDKPath)\sdk;$(OpenTelemetrySDKPath)\sdk\include;$(OpenTelemetrySDKPath)\third_party\ms-gsl\include;$(IncludePath)</IncludePath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>

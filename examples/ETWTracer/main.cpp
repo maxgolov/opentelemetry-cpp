@@ -23,6 +23,9 @@
 // Option below requires Abseil C++ library :
 // #define HAVE_ABSEIL
 
+#define HAVE_MSGPACK
+#define HAVE_NO_TLD
+
 #include "ETWTracer.hpp"
 #include <string>
 
@@ -135,7 +138,23 @@ void test_ETWProvider_direct(std::string providerName, std::string eventName)
       {"strKey", "someValue"}
   };
   printf("etw.write...\n");
-  etw.write(handle, event);
+
+  // TODO: long-term we support several ETW encodings:
+  // - ETW Dynamic Manifest - compatible with standard ETW tooling
+  // - ETW/MsgPack encoding carrying any arbitrary JSON-alike objects
+  // - ETW/XML
+  // NOTE: Currently ETW Dynamic Manifest support (TLD) is not available in this repo.
+
+#ifndef HAVE_NO_TLD
+  // Emit event in TLD format
+  etw.writeTld(handle, event);
+#endif
+
+#ifdef HAVE_MSGPACK
+  // Emit event in MessagePack format
+  etw.writeMsgPack(handle, event);
+#endif
+
   printf("etw.close...\n");
   etw.close(handle);
   printf("[ DONE ]\n");
@@ -143,7 +162,7 @@ void test_ETWProvider_direct(std::string providerName, std::string eventName)
 
 int main(int argc, char *argv[])
 {
-  std::string providerName = "MyProviderName";
+  std::string providerName = "OpenTelemetry";
   std::string eventName    = "MyEvent";
   if (argc>1)
   {

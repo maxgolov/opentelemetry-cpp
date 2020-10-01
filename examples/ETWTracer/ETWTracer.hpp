@@ -39,6 +39,8 @@
 
 #include "ETWProvider.hpp"
 
+#include "utils.hpp"
+
 namespace core  = opentelemetry::core;
 namespace trace = opentelemetry::trace;
 
@@ -73,6 +75,11 @@ class Tracer : public trace::Tracer
   ETWProvider::Handle provHandle;
 
   /// <summary>
+  /// Encoding (Manifest, MessagePack or XML)
+  /// </summary>
+  ETWProvider::EventFormat encoding;
+
+  /// <summary>
   /// ETWProvider is a singleton that aggregates all ETW writes.
   /// </summary>
   /// <returns></returns>
@@ -89,10 +96,13 @@ public:
   /// <param name="parent">Parent TraceProvider</param>
   /// <param name="providerId">providerId</param>
   /// <returns>Tracer instance</returns>
-  Tracer(trace::TracerProvider &parent, nostd::string_view providerId = "")
-      : trace::Tracer(), parent(parent), provId(providerId.data(), providerId.size())
+  Tracer(trace::TracerProvider &parent,
+         nostd::string_view providerId   = "",
+         ETWProvider::EventFormat encoding = ETWProvider::EventFormat::ETW_MANIFEST)
+      : trace::Tracer(), parent(parent), provId(providerId.data(), providerId.size()),
+      encoding(encoding)
   {
-    provHandle = etwProvider().open(provId);
+    provHandle = etwProvider().open(provId, encoding);
   };
 
   /// <summary>
@@ -153,7 +163,23 @@ public:
       return true;
     });
     m["name"] = name.data();
-    etwProvider().write(provHandle, m);
+
+#ifdef HAVE_TLD
+    if (encoding == ETWProvider::ETW_MANIFEST)
+    {
+      etwProvider().writeTld(provHandle, m);
+      return;
+    }
+#endif
+
+#ifdef HAVE_MSGPACK
+    if (encoding == ETWProvider::ETW_MSGPACK)
+    {
+      etwProvider().writeMsgPack(provHandle, m);
+      return;
+    }
+#endif
+
   };
 
   /// <summary>
@@ -334,8 +360,46 @@ public:
   virtual nostd::shared_ptr<trace::Tracer> GetTracer(nostd::string_view name,
                                                      nostd::string_view args = "")
   {
-    UNREFERENCED_PARAMETER(args);
-    return nostd::shared_ptr<trace::Tracer>{new (std::nothrow) Tracer(*this, name)};
+    // TODO: describe possible args. Currently supported:
+    // "MSGPACK"        - use MessagePack
+    // "XML"            - use XML
+    // "ETW"            - use 'classic' Trace Logging Dynamic manifest ETW event
+    //
+#if defined(HAVE_NO_TLD) && defined(HAVE_MSGPACK)
+    ETWProvider::EventFormat evtFmt = ETWProvider::EventFormat::ETW_MSGPACK;
+#else
+    ETWProvider::EventFormat evtFmt = ETWProvider::EventFormat::ETW_MANIFEST;
+#endif
+
+    auto h = utils::hashCode(args.data());
+    switch (h)
+    {
+      case CONST_HASHCODE(MSGPACK):
+        // nobrk
+      case CONST_HASHCODE(MsgPack):
+        // nobrk
+      case CONST_HASHCODE(MessagePack):
+        evtFmt = ETWProvider::EventFormat::ETW_MSGPACK;
+        break;
+
+      case CONST_HASHCODE(XML):
+        // nobrk
+      case CONST_HASHCODE(xml):
+        evtFmt = ETWProvider::EventFormat::ETW_XML;
+        break;
+
+      case CONST_HASHCODE(TLD):
+        // nobrk
+      case CONST_HASHCODE(tld):
+        // nobrk
+        evtFmt = ETWProvider::EventFormat::ETW_MANIFEST;
+        break;
+
+      default:
+        break;
+
+    }
+    return nostd::shared_ptr<trace::Tracer>{new (std::nothrow) Tracer(*this, name, evtFmt)};
   }
 };
 

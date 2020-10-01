@@ -31,7 +31,16 @@
 
 #    include "utils.hpp"
 
+#    ifdef HAVE_MSGPACK
+// This option requires INCLUDE_DIR=$(ProjectDir)\..\..\third_party\json\include;...
+#    include "nlohmann/json.hpp"
+#endif
+
+#    ifndef HAVE_NO_TLD
+// Allow to opt-out from `TraceLoggingDynamic.h` header usage
+#    define HAVE_TLD
 #    include "TraceLoggingDynamic.h"
+#endif
 
 #    include <map>
 #    include <mutex>
@@ -47,8 +56,6 @@
 
 #    define MICROSOFT_EVENTTAG_NORMAL_PERSISTENCE 0x01000000
 
-// using namespace tld;
-
 OPENTELEMETRY_BEGIN_NAMESPACE
 
 class ETWProvider
@@ -56,18 +63,25 @@ class ETWProvider
 
 public:
 
-  const unsigned long STATUS_OK = 0;
+  const unsigned long STATUS_OK    = 0;
   const unsigned long STATUS_ERROR = ULONG_MAX;
   const unsigned long STATUS_EFBIG = ULONG_MAX - 1;
+
+  enum EventFormat
+  {
+    ETW_MANIFEST = 0,
+    ETW_MSGPACK  = 1,
+    ETW_XML      = 2
+  };
 
   /// <summary>
   /// Entry that contains Provider Handle, Provider MetaData and Provider GUID
   /// </summary>
   struct Handle
   {
-    uint64_t providerHandle;
+    REGHANDLE         providerHandle;
     std::vector<BYTE> providerMetaVector;
-    GUID providerGuid;
+    GUID              providerGuid;
   };
 
   /// <summary>
@@ -94,9 +108,14 @@ public:
   /// </summary>
   /// <param name="providerId"></param>
   /// <returns></returns>
-  Handle &open(const std::string &providerId)
+  Handle &open(const std::string &providerId, EventFormat format = EventFormat::ETW_MANIFEST)
   {
     std::lock_guard<std::mutex> lock(m_providerMapLock);
+
+#ifdef HAVE_NO_TLD
+    // Fallback to MessagePack-encoded ETW events
+    format = EventFormat::ETW_MSGPACK;
+#endif
 
     // Check and return if provider is already registered
     auto it = providers().find(providerId);
@@ -121,23 +140,56 @@ public:
     // TODO: currently we do not allow to specify a custom group GUID
     GUID providerGroupGuid = NULL_GUID;
 
-    tld::ProviderMetadataBuilder<std::vector<BYTE>> providerMetaBuilder(data.providerMetaVector);
-
-    // Use Tenant ID as provider Name
-    providerMetaBuilder.Begin(providerId.c_str());
-    providerMetaBuilder.AddTrait(tld::ProviderTraitType::ProviderTraitGroupGuid,
-                                 (void *)&providerGroupGuid, sizeof(GUID));
-    providerMetaBuilder.End();
-
-    REGHANDLE hProvider = 0;
-    if (0 != tld::RegisterProvider(&hProvider, &data.providerGuid, data.providerMetaVector.data()))
+    switch (format)
     {
-      data.providerHandle = INVALID_HANDLE;
+#ifdef HAVE_TLD
+      // Register with TraceLoggingDynamic facility - dynamic manifest ETW events.
+      case EventFormat::ETW_MANIFEST: {
+        tld::ProviderMetadataBuilder<std::vector<BYTE>> providerMetaBuilder(
+            data.providerMetaVector);
+
+        // Use Tenant ID as provider Name
+        providerMetaBuilder.Begin(providerId.c_str());
+        providerMetaBuilder.AddTrait(tld::ProviderTraitType::ProviderTraitGroupGuid,
+                                     (void *)&providerGroupGuid, sizeof(GUID));
+        providerMetaBuilder.End();
+
+        REGHANDLE hProvider = 0;
+        if (0 !=
+            tld::RegisterProvider(&hProvider, &data.providerGuid, data.providerMetaVector.data()))
+        {
+          // There was an error registering the ETW provider
+          data.providerHandle = INVALID_HANDLE;
+        }
+        else
+        {
+          data.providerHandle = hProvider;
+        };
+      };
+      break;
+#endif
+
+#ifdef HAVE_MSGPACK
+      // Register for MsgPack payload ETW events.
+      case EventFormat::ETW_MSGPACK: {
+        REGHANDLE hProvider = 0;
+        if (EventRegister(&data.providerGuid, NULL, NULL, &hProvider) != ERROR_SUCCESS)
+        {
+          // There was an error registering the ETW provider
+          data.providerHandle = INVALID_HANDLE;
+        }
+        else
+        {
+          data.providerHandle = hProvider;
+        }
+      };
+      break;
+#endif
+
+      default:
+        // TODO: other protocols, e.g. XML events - not supported yet
+        break;
     }
-    else
-    {
-      data.providerHandle = hProvider;
-    };
 
     // We always return an entry even if we failed to register.
     // Caller should check whether the hProvider handle is valid.
@@ -167,6 +219,221 @@ public:
     return STATUS_ERROR;
   }
 
+#ifdef HAVE_MSGPACK
+  template <class T>
+  unsigned long writeMsgPack(Handle &providerData, T eventData)
+  {
+
+    // Make sure you stop sending event before register unregistering providerData
+    if (providerData.providerHandle == INVALID_HANDLE)
+    {
+      // Provider not registered!
+      return STATUS_ERROR;
+    };
+
+    const std::string EVENT_NAME = "name";
+    char *eventName              = "NoName";
+    auto nameField               = eventData[EVENT_NAME];
+    switch (nameField.index())
+    {
+      case common::AttributeType::TYPE_STRING:
+        eventName =
+            (char *)(nostd::get<nostd::string_view>(nameField).data());  // must be 0-terminated!
+        break;
+      case common::AttributeType::TYPE_CSTRING:
+        eventName = (char *)(nostd::get<const char *>(nameField));
+        break;
+      default:
+        // Invalid event name!
+        break;
+    }
+
+    /* clang-format off */
+    nlohmann::json jObj =
+    {
+      { "env_name", "Span" },
+      { "env_ver", "4.0" },
+      
+      // TODO: remove these fields. Provided for illustrative purposes only.
+      { "env_cloud_role", "BusyWorker" },
+      { "env_cloud_roleInstance", "CY1SCH030021417" },
+      { "env_cloud_roleVer", "9.0.15289.2" },
+      //
+      
+      // TODO: compute time in MessagePack-friendly format
+      // TODO: should we consider uint64_t format with Unix timestamps for ELK stack?
+      { "env_time",
+        {
+          { "TypeCode", 255 },
+          { "Body","0xFFFFFC60000000005F752C2C" }
+        }
+      },
+      // 
+      
+      // TODO: follow JSON implementation of OTLP or place protobuf for non-Microsoft flows
+      { "env_dt_traceId", "6dcdae7b9b0c7643967d74ee54056178" },
+      { "env_dt_spanId", "5866c4322919e641" },
+      //
+      
+      { "name", eventName },
+      { "kind", 0 },
+      { "startTime",
+        {
+          // TODO: timestamp
+          { "TypeCode", 255 },
+          { "Body", "0xFFFF87CC000000005F752C2C" }
+        }
+      }
+    };
+    /* clang-format on */
+
+    for (auto &kv : eventData)
+    {
+      const char *name = kv.first.data();
+      // Don't include event name field in the payload
+      if (EVENT_NAME == name)
+        continue;
+      auto &value = kv.second;
+      switch (value.index())
+      {
+        case common::AttributeType::TYPE_BOOL: {
+          UINT8 temp = static_cast<UINT8>(nostd::get<bool>(value));
+          jObj[name] = temp;
+          break;
+        }
+        case common::AttributeType::TYPE_INT: {
+          auto temp  = nostd::get<int32_t>(value);
+          jObj[name] = temp;
+          break;
+        }
+        case common::AttributeType::TYPE_INT64: {
+          auto temp  = nostd::get<int64_t>(value);
+          jObj[name] = temp;
+          break;
+        }
+        case common::AttributeType::TYPE_UINT: {
+          auto temp  = nostd::get<uint32_t>(value);
+          jObj[name] = temp;
+          break;
+        }
+        case common::AttributeType::TYPE_UINT64: {
+          auto temp  = nostd::get<uint64_t>(value);
+          jObj[name] = temp;
+          break;
+        }
+        case common::AttributeType::TYPE_DOUBLE: {
+          auto temp  = nostd::get<double>(value);
+          jObj[name] = temp;
+          break;
+        }
+        case common::AttributeType::TYPE_STRING: {
+          auto temp  = nostd::get<nostd::string_view>(value);
+          jObj[name] = temp;
+          break;
+        }
+        case common::AttributeType::TYPE_CSTRING: {
+          auto temp  = nostd::get<const char *>(value);
+          jObj[name] = temp;
+          break;
+        }
+#  if HAVE_TYPE_GUID
+          // TODO: consider adding UUID/GUID to spec
+        case common::AttributeType::TYPE_GUID: {
+          auto temp = nostd::get<GUID>(value);
+          // TODO: add transform from GUID type to string?
+          jObj[name] = temp;
+          break;
+        }
+#  endif
+        // TODO: arrays are not supported yet
+#  if 0
+        // TODO: array of uint8_t is not supported by OT spec
+        case common::AttributeType::TYPE_SPAN_BYTE:
+#  endif
+        case common::AttributeType::TYPE_SPAN_BOOL:
+        case common::AttributeType::TYPE_SPAN_INT:
+        case common::AttributeType::TYPE_SPAN_INT64:
+        case common::AttributeType::TYPE_SPAN_UINT:
+        case common::AttributeType::TYPE_SPAN_UINT64:
+        case common::AttributeType::TYPE_SPAN_DOUBLE:
+        case common::AttributeType::TYPE_SPAN_STRING:
+        default:
+          // TODO: unsupported type
+          break;
+      }
+    };
+
+    // Layer 1
+    nlohmann::json l1 = nlohmann::json::array();
+    // Layer 2
+    nlohmann::json l2 = nlohmann::json::array();
+    // Layer 3
+    nlohmann::json l3 = nlohmann::json::array();
+
+    l1.push_back("Span");
+
+    {
+      // TODO: clarify why this is needed
+      // TODO: fix time here
+      nlohmann::json j;
+      j["TypeCode"] = 255;
+      j["Body"]     = "0xFFFFFC60000000005F752C2C";
+      l3.push_back(j);
+    };
+
+    // Actual value object goes here
+    l3.push_back(jObj);
+
+    l2.push_back(l3);
+    l1.push_back(l2);
+
+    {
+      // Another time field again, but at the top
+      // TODO: fix time here
+      nlohmann::json j;
+      j["TypeCode"] = 255;
+      j["Body"]     = "0xFFFFFC60000000005F752C2C";
+      l1.push_back(j);
+    };
+
+    std::vector<uint8_t> v = nlohmann::json::to_msgpack(l1);
+
+    // NUL-terminator and padding for odd-sized buffers
+    v.push_back(0);
+    v.push_back(0);
+    if (v.size() % 2)
+    {
+      v.push_back(0);
+    };
+    void *buff             = v.data();
+
+    UCHAR level        = 0;  // LogAlways
+    auto writeResponse = EventWriteString(providerData.providerHandle, level, 0, (PCWSTR)buff);
+
+    switch (writeResponse)
+    {
+      case ERROR_INVALID_PARAMETER:
+        break;
+      case ERROR_INVALID_HANDLE:
+        break;
+      case ERROR_ARITHMETIC_OVERFLOW:
+        break;
+      case ERROR_MORE_DATA:
+        break;
+      case ERROR_NOT_ENOUGH_MEMORY:
+        break;
+      default:
+        break;
+    };
+
+    if (writeResponse == HRESULT_FROM_WIN32(ERROR_ARITHMETIC_OVERFLOW))
+    {
+      return STATUS_EFBIG;
+    };
+    return (unsigned long)(writeResponse);
+  }
+#endif
+
   /// <summary>
   /// Send event to Provider Id
   /// </summary>
@@ -174,8 +441,9 @@ public:
   /// <param name="eventData"></param>
   /// <returns></returns>
   template<class T>
-  unsigned long write(Handle &providerData, T eventData)
+  unsigned long writeTld(Handle &providerData, T eventData)
   {
+#ifdef HAVE_TLD
     // Make sure you stop sending event before register unregistering providerData
     if (providerData.providerHandle == INVALID_HANDLE)
     {
@@ -327,7 +595,31 @@ public:
     };
 
     return (unsigned long)(writeResponse);
+#else
+    return STATUS_ERROR;
+#endif
   }
+
+  template <class T>
+  unsigned long write(Handle &providerData,
+                      T eventData,
+                      ETWProvider::EventFormat format = ETWProvider::EventFormat::ETW_MANIFEST)
+  {
+    if (format==ETWProvider::EventFormat::ETW_MANIFEST)
+    {
+      return writeTld(providerData, eventData);
+    }
+    if (format == ETWProvider::EventFormat::ETW_MSGPACK)
+    {
+      return writeMsgPack(providerData, eventData);
+    }
+    if (format == ETWProvider::EventFormat::ETW_XML)
+    {
+        // TODO: not implemented
+      return STATUS_ERROR;
+    }
+    return STATUS_ERROR;
+  };
 
   static const REGHANDLE INVALID_HANDLE = _UI64_MAX;
 
@@ -350,4 +642,3 @@ protected:
 };
 
 OPENTELEMETRY_END_NAMESPACE
-

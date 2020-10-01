@@ -77,7 +77,7 @@ std::multimap<std::string, std::string> testParams = {
     // JSON pipe listener (Windows)
     {"json", "\\\\.\\pipe\\ETW-6d084bbf-6a96-44ef-83F4-0a77c9e34580"},
     // ETW-XML listener (Windows)
-    {"ETW", "{6D084BBF-6A96-44EF-83F4-0A77C9E34580}"},
+    {"ETW", "{c8fa2d35-9029-570b-7f78-a8bc116a49b2}"}, // Provider Name = "OpenTelemetry"
 #endif
     // Console
     {"CON", "1.0"},
