@@ -232,7 +232,7 @@ public:
     };
 
     const std::string EVENT_NAME = "name";
-    char *eventName              = "NoName";
+    std::string eventName        = "NoName";
     auto nameField               = eventData[EVENT_NAME];
     switch (nameField.index())
     {
@@ -244,7 +244,8 @@ public:
         eventName = (char *)(nostd::get<const char *>(nameField));
         break;
       default:
-        // Invalid event name!
+        // This is user error. Invalid event name!
+        // We supply default 'NoName' event name in this case.
         break;
     }
 
@@ -459,22 +460,24 @@ public:
     tld::EventDataBuilder<std::vector<BYTE>> dbuilder(byteDataVector);
 
     const std::string EVENT_NAME = "name";
-    char *eventName              = "NoName";
+    std::string eventName        = "NoName";
     auto nameField               = eventData[EVENT_NAME];
     switch (nameField.index())
     {
       case common::AttributeType::TYPE_STRING:
-        eventName = (char *)(nostd::get<nostd::string_view>(nameField).data());  // must be 0-terminated!
+        eventName =
+            (char *)(nostd::get<nostd::string_view>(nameField).data());  // must be 0-terminated!
         break;
       case common::AttributeType::TYPE_CSTRING:
         eventName = (char *)(nostd::get<const char *>(nameField));
         break;
       default:
-        // Invalid event name!
+        // This is user error. Invalid event name!
+        // We supply default 'NoName' event name in this case.
         break;
     }
 
-    builder.Begin(eventName, eventTags);
+    builder.Begin(eventName.c_str(), eventTags);
 
     for (auto &kv : eventData)
     {
