@@ -371,6 +371,8 @@ public:
     ETWProvider::EventFormat evtFmt = ETWProvider::EventFormat::ETW_MANIFEST;
 #endif
 
+#pragma warning(push)
+#pragma warning(disable : 4307) /* Integral constant overflow - OK while computing hash */
     auto h = utils::hashCode(args.data());
     switch (h)
     {
@@ -399,6 +401,7 @@ public:
         break;
 
     }
+#pragma warning(pop)
     return nostd::shared_ptr<trace::Tracer>{new (std::nothrow) Tracer(*this, name, evtFmt)};
   }
 };

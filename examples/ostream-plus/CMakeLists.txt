@@ -5,7 +5,7 @@
 # various 'stream' destinations (file, pipe, ETW, debugger).
 #
 cmake_minimum_required(VERSION 3.1.0)
-project(TraceStreamer)
+project(StreamTracer)
 
 option(WITH_STL "Whether to use Standard Library for C++latest features" ON)
 
@@ -34,11 +34,11 @@ find_package(Threads)
 include_directories(. ${OPENTELEMETRY_API_DIR}/include /usr/include)
 
 # Link main.cpp to executable
-add_executable(TraceStreamer main.cpp)
+add_executable(StreamTracer main.cpp)
 source_group(" " REGULAR_EXPRESSION "")
 
 target_link_libraries(
-  TraceStreamer
+  StreamTracer
   ${CMAKE_THREAD_LIBS_INIT}
   ${PLATFORM_LIBS}
   ${CMAKE_DL_LIBS}

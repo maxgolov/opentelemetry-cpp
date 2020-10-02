@@ -124,7 +124,7 @@ struct EventConverter
 ///
 struct NullConverter : EventConverter
 {
-  virtual std::string convert(EventData data) override { return ""; };
+  virtual std::string convert(EventData) override { return ""; };
 };
 
 ///

@@ -426,7 +426,7 @@ public:
         break;
     };
 
-    if (writeResponse == HRESULT_FROM_WIN32(ERROR_ARITHMETIC_OVERFLOW))
+    if (writeResponse == ERROR_ARITHMETIC_OVERFLOW)
     {
       return STATUS_EFBIG;
     };

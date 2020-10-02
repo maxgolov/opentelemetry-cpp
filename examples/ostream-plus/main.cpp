@@ -119,6 +119,9 @@ int main(int argc, char *argv[])
   // Run the benchmark
   ::benchmark::Initialize(&argc, argv);
   ::benchmark::RunSpecifiedBenchmarks();
+#else
+  UNREFERENCED_PARAMETER(argc);
+  UNREFERENCED_PARAMETER(argv);
 #endif
 
   return 0;

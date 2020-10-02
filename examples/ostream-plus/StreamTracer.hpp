@@ -1,5 +1,8 @@
 #pragma once
 
+#pragma warning(push)
+#pragma warning(disable : 4100)
+
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -146,7 +149,7 @@ class NullStreamBuffer : public std::streambuf
 {
 public:
   NullStreamBuffer() : std::streambuf(){};
-  virtual std::streamsize xsputn(const char *s, std::streamsize n) { return 0; };
+  virtual std::streamsize xsputn(const char *, std::streamsize) { return 0; };
 };
 
 /// <summary>
@@ -274,8 +277,8 @@ class Tracer : public trace::Tracer
     {
 
       case TraceStreamType::ST_NULL: {
-        static NullStringStream stream;
-        return stream;
+        static NullStringStream _stream;
+        return _stream;
       };
 
       case TraceStreamType::ST_File_Log:
@@ -311,8 +314,8 @@ class Tracer : public trace::Tracer
 
       case TraceStreamType::ST_SYSLOG: {
         /* TODO: not implemented */
-        static NullStringStream stream;
-        return stream;
+        static NullStringStream _stream;
+        return _stream;
       };
 
       case TraceStreamType::ST_CONSOLE: {
@@ -321,8 +324,8 @@ class Tracer : public trace::Tracer
 
       case TraceStreamType::ST_USER: {
         /* TODO: not implemented */
-        static NullStringStream stream;
-        return stream;
+        static NullStringStream _stream;
+        return _stream;
       };
 
       default:
@@ -611,6 +614,11 @@ public:
   {
     TraceStreamType stype = TraceStreamType::ST_NULL;
     auto h                = utils::hashCode(name.data());
+
+#ifdef _WIN32
+#pragma warning(push)
+#pragma warning(disable : 4307) /* Integral constant overflow - OK while computing hash */
+#endif
     // Map from string name to TraceStreamType
     std::unordered_map<uint32_t, TraceStreamType> stypes =
     {
@@ -629,6 +637,10 @@ public:
       {CONST_HASHCODE(JSON),      TraceStreamType::ST_File_JSON},
       {CONST_HASHCODE(json),      TraceStreamType::ST_File_JSON},
     };
+#ifdef _WIN32
+#pragma warning(pop)
+#endif
+
     // TODO: add more types in here and allow user-registered streams
     auto it = stypes.find(h);
     if (it != stypes.end())
@@ -642,3 +654,4 @@ OPENTELEMETRY_END_NAMESPACE
 
 // Windows-only implementation of ETW stream
 #include "ETWStringStream.hpp"
+#pragma warning(pop)
