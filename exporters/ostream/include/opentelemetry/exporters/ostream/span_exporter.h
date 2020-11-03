@@ -89,6 +89,9 @@ private:
     sout_ << ']';
   }
 
+// Prior to C++14, generic lambda is not available so fallback to functor.
+#if __cplusplus < 201402L
+
   class SpanDataAttributeValueVisitor
   {
   public:
@@ -103,6 +106,8 @@ private:
   private:
     OStreamSpanExporter &exporter_;
   };
+
+#endif
 
   void print_value(sdktrace::SpanDataAttributeValue &value)
   {

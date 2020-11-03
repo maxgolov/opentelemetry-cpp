@@ -1,8 +1,4 @@
-<<<<<<< HEAD
-#include "opentelemetry/trace/key_value_iterable_view.h"
-=======
 #include "opentelemetry/common/key_value_iterable_view.h"
->>>>>>> ca5eed056eb75a919e1f652d007a82f3dd7b8aeb
 
 #include <gtest/gtest.h>
 #include <map>
