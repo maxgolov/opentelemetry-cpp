@@ -13,7 +13,7 @@
 
 ## SDK Data Path Diagram
 
-![Data Path Diagram](../images/DataPath.png)
+<!-- [//]: # ![Data Path Diagram](../images/DataPath.png) -->
 
 This is the control path our implementation of the metrics SDK will follow. There are five main components: The controller, accumulator, aggregators, processor, and exporter. Each of these components will be further elaborated on.
 
@@ -44,7 +44,7 @@ A `MeterProvider` interface must support a  `global.SetMeterProvider(MeterProvid
 The Provider class offers static functions to both get and set the global MeterProvider. Once a user sets the MeterProvider, it will replace the default No-op implementation stored as a private variable and persist for the remainder of the program’s execution. This pattern imitates the TracerProvider used in the Tracing portion of this SDK.
 
 
-```
+```cc
 # meter_provider.cc
 class MeterProvider
 {
@@ -99,9 +99,9 @@ Each distinctly named Meter (i.e. Meters derived from different instrumentation 
 
 ### Implementation
 
-```
+```cc
 # meter.h / meter.cc
-Class Meter : public API::Meter {
+class Meter : public API::Meter {
 public:
  /*
   * Constructor for Meter class
@@ -206,7 +206,7 @@ private:
   * of labels with a single API call. Implementations should find bound metric
   * instruments that match the key-value pairs in the labels.
   *
-  * Arugments:
+  * Arguments:
   * labels, labels associated with all measurements in the batch.
   * records, a KeyValueIterable containing metric instrument names such as
   *          "IntCounter" or "DoubleSumObserver" and the corresponding value
@@ -239,7 +239,7 @@ private:
 
 
 
-```
+```cc
 # record.h
 /*
  * This class is used to pass checkpointed values from the Meter
@@ -351,7 +351,7 @@ The only addition to the SDK metric instrument classes from their API counterpar
 
 Note: these requirements come from a specification currently under development. Changes and feedback are in [PR #347](https://github.com/open-telemetry/opentelemetry-specification/pull/347) and the current document is linked [here](https://github.com/open-telemetry/opentelemetry-specification/blob/64bbb0c611d849b90916005d7714fa2a7132d0bf/specification/metrics/sdk.md).
 
-![Data Path Diagram](../images/DataPath.png)
+<!-- [//]: # ![Data Path Diagram](../images/DataPath.png) -->
 
 ## **Accumulator**
 
@@ -372,7 +372,7 @@ The SDK must include the Counter aggregator which maintains a sum and the gauge 
 All operations should be atomic in languages that support them.
 
 
-```
+```cc
 # aggregator.cc
 class Aggregator {
 public:
@@ -381,7 +381,7 @@ public:
         self.checkpoint_ = nullptr
     }
 
-    /*
+   /*
     * Update
     *
     * Updates the current value with the new value.
@@ -480,7 +480,7 @@ Note: Josh MacDonald is working on implementing a [‘basic’ Processor](https:
 Design choice: We recommend that we implement the ‘simple’ Processor first as apart of the MVP and then will also implement the ‘basic’ Processor later on. Josh recommended having both for doing different processes.
 
 
-```
+```cc
 #processor.cc
 class Processor {
 public:
@@ -555,7 +555,7 @@ There are two different controllers: Push and Pull. The “Push” Controller wi
 We recommend implementing the PushController as the initial implementation of the Controller. This Controller is the base controller in the specification. We may also implement the PullController if we have the time to do it.
 
 
-```
+```cc
 #push_controller.cc
 class PushController {
 
@@ -577,6 +577,7 @@ class PushController {
     MeterProvider Provider {
         return this.provider_;
     }
+
    /*
     * Start (THREAD SAFE)
     *
@@ -635,7 +636,7 @@ There is very little left for the exporter to do other than format the metric up
 Design choice: Our idea is to take the simple trace example [StdoutExporter](https://github.com/open-telemetry/opentelemetry-cpp/blob/master/examples/simple/stdout_exporter.h) and add Metric functionality to it. This will allow us to verify that what we are implementing in the API and SDK works as intended. The exporter will go through the different metric instruments and print the value stored in their aggregators to stdout, **for simplicity only Sum is shown here, but all aggregators will be implemented**.
 
 
-```
+```cc
 # stdout_exporter.cc
 class StdoutExporter: public exporter {
    /*
@@ -656,13 +657,13 @@ class StdoutExporter: public exporter {
     * Shuts down the channel and cleans up resources as required.
     *
     */
-    void Shutdown();
+    bool Shutdown();
 };
 ```
 
 
 
-```
+```cc
 enum class ExportResult {
    kSuccess,
    kFailure,

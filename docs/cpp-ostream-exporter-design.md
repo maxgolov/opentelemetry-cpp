@@ -35,7 +35,7 @@ The goal of the interface is to minimize burden of implementation for protocol-d
 
 The SpanExporter is called through the SpanProcessor, which passes finished spans to the configured SpanExporter, as soon as they are finished. The SpanProcessor also shutdown the exporter by the Shutdown function within the SpanProcessor.
 
-![SDK Data Path](./images/SpanDataPath.png)
+<!-- [//]: # ![SDK Data Path](./images/SpanDataPath.png) -->
 
 The specification states: exporter must support two functions: Export and Shutdown.
 
@@ -58,7 +58,7 @@ Shuts down the exporter. Called when SDK is shut down. This is an opportunity fo
 
 In the OStreamExporter there is no cleanup to be done, so there is no need to use the timeout within the `Shutdown` function as it will never be blocking.
 
-```
+```cc
 class StreamSpanExporter final : public sdktrace::SpanExporter
 {
 
@@ -111,9 +111,10 @@ public:
         return sdktrace::ExportResult::kSuccess;
     }
 
-    void Shutdown(std::chrono::microseconds timeout = std::chrono::microseconds(0)) noexcept
+    bool Shutdown(std::chrono::microseconds timeout = std::chrono::microseconds::max()) noexcept
     {
         isShutdown = true;
+        return true;
     }
 
 };
@@ -127,7 +128,7 @@ The MetricsExporter has the same requirements as the SpanExporter. The exporter 
 
 Exports a batch of telemetry data. Protocol exporters that will implement this function are typically expected to serialize and transmit the data to the destination.
 
-![SDK Data Path](./images/DataPath.png)
+<!-- [//]: # ![SDK Data Path](./images/DataPath.png) -->
 
 ### `Export(batch of Records)`
 
@@ -141,7 +142,7 @@ The MetricsExporter is called through the Controller in the SDK data path. The e
 
 Shutdown() is currently not required for the OStreamMetricsExporter.
 
-```
+```cc
 class StreamMetricsExporter final : public sdkmeter::MetricsExporter
 {
 

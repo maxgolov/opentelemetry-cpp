@@ -39,8 +39,8 @@ public:
   template <class T>
   Context SetValues(T &values) noexcept
   {
-    Context context                   = Context(values);
-    nostd::shared_ptr<DataList> &last = context.head_;
+    Context context                  = Context(values);
+    nostd::shared_ptr<DataList> last = context.head_;
     while (last->next_ != nullptr)
     {
       last = last->next_;
@@ -91,16 +91,16 @@ public:
     return false;
   }
 
-  bool operator==(const Context &other) { return (head_ == other.head_); }
+  bool operator==(const Context &other) const noexcept { return (head_ == other.head_); }
 
 private:
   // A linked list to contain the keys and values of this context node
   class DataList
   {
   public:
-    nostd::shared_ptr<DataList> next_;
-
     char *key_;
+
+    nostd::shared_ptr<DataList> next_;
 
     size_t key_length_;
 
@@ -110,7 +110,7 @@ private:
 
     // Builds a data list off of a key and value iterable and returns the head
     template <class T>
-    DataList(const T &keys_and_vals) : key_{nullptr}
+    DataList(const T &keys_and_vals) : key_{nullptr}, next_(nostd::shared_ptr<DataList>{nullptr})
     {
       bool first = true;
       auto *node = this;

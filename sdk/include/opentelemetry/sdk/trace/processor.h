@@ -24,6 +24,8 @@ public:
    * Create a span recordable. This requests a new span recordable from the
    * associated exporter.
    * @return a newly initialized recordable
+   *
+   * Note: This method must be callable from multiple threads.
    */
   virtual std::unique_ptr<Recordable> MakeRecordable() noexcept = 0;
 
@@ -44,8 +46,8 @@ public:
    * @param timeout an optional timeout, the default timeout of 0 means that no
    * timeout is applied.
    */
-  virtual void ForceFlush(
-      std::chrono::microseconds timeout = std::chrono::microseconds(0)) noexcept = 0;
+  virtual bool ForceFlush(
+      std::chrono::microseconds timeout = (std::chrono::microseconds::max)()) noexcept = 0;
 
   /**
    * Shut down the processor and do any cleanup required. Ended spans are
@@ -55,8 +57,8 @@ public:
    * @param timeout an optional timeout, the default timeout of 0 means that no
    * timeout is applied.
    */
-  virtual void Shutdown(
-      std::chrono::microseconds timeout = std::chrono::microseconds(0)) noexcept = 0;
+  virtual bool Shutdown(
+      std::chrono::microseconds timeout = (std::chrono::microseconds::max)()) noexcept = 0;
 };
 }  // namespace trace
 }  // namespace sdk

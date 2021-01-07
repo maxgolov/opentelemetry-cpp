@@ -16,13 +16,13 @@
 #include <iostream>
 #include <map>
 #include <string>
+#include "opentelemetry/common/key_value_iterable.h"
 #include "opentelemetry/context/context.h"
 #include "opentelemetry/nostd/shared_ptr.h"
 #include "opentelemetry/nostd/span.h"
 #include "opentelemetry/nostd/string_view.h"
 #include "opentelemetry/nostd/variant.h"
 #include "opentelemetry/trace/default_span.h"
-#include "opentelemetry/trace/key_value_iterable.h"
 #include "opentelemetry/trace/propagation/http_text_format.h"
 #include "opentelemetry/trace/span.h"
 #include "opentelemetry/trace/span_context.h"
@@ -77,22 +77,20 @@ public:
                            const T &carrier,
                            context::Context &context) noexcept override
   {
-    SpanContext span_context    = ExtractImpl(getter, carrier);
-    nostd::string_view span_key = "current-span";
+    SpanContext span_context = ExtractImpl(getter, carrier);
     nostd::shared_ptr<Span> sp{new DefaultSpan(span_context)};
-    return context.SetValue(span_key, sp);
+    return context.SetValue(kSpanKey, sp);
   }
 
   static SpanContext GetCurrentSpan(const context::Context &context)
   {
-    const nostd::string_view span_key = "current-span";
     context::Context ctx(context);
-    context::ContextValue span = ctx.GetValue(span_key);
+    context::ContextValue span = ctx.GetValue(kSpanKey);
     if (nostd::holds_alternative<nostd::shared_ptr<Span>>(span))
     {
       return nostd::get<nostd::shared_ptr<Span>>(span).get()->GetContext();
     }
-    return SpanContext();
+    return SpanContext::GetInvalid();
   }
 
   static TraceId GenerateTraceIdFromString(nostd::string_view trace_id)
@@ -131,7 +129,7 @@ private:
   // Converts the hex numbers stored as strings into bytes stored in a buffer.
   static void GenerateHexFromString(nostd::string_view string, int bytes, uint8_t *buf)
   {
-    const char *str_id = string.begin();
+    const char *str_id = string.data();
     for (int i = 0; i < bytes; i++)
     {
       int tmp = HexToInt(str_id[i]);
