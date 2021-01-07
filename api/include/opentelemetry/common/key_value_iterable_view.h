@@ -36,7 +36,7 @@ class KeyValueIterableView final : public KeyValueIterable
   static_assert(detail::is_key_value_iterable<T>::value, "Must be a key-value iterable");
 
 public:
-  explicit KeyValueIterableView(const T &container) noexcept : container_{&container} {};
+  explicit KeyValueIterableView(const T &container) noexcept : container_{&container} {}
 
   // KeyValueIterable
   bool ForEachKeyValue(

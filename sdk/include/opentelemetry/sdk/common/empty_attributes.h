@@ -41,5 +41,11 @@ static const opentelemetry::common::KeyValueIterableView<std::array<std::pair<st
 
   return kEmptyAttributes;
 }
+#if 0
+static const opentelemetry::common::NullKeyValueIterable GetEmptyAttributes() noexcept
+{
+  return opentelemetry::common::NullKeyValueIterable();
+}
+#endif
 }  // namespace sdk
 OPENTELEMETRY_END_NAMESPACE
